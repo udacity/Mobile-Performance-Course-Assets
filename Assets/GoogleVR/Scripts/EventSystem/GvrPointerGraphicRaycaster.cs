@@ -24,6 +24,7 @@ using UnityEngine.UI;
 /// View GvrBasePointerRaycaster.cs and GvrPointerInputModule.cs for more details.
 [AddComponentMenu("GoogleVR/GvrPointerGraphicRaycaster")]
 [RequireComponent(typeof(Canvas))]
+[HelpURL("https://developers.google.com/vr/unity/reference/class/GvrPointerGraphicRaycaster")]
 public class GvrPointerGraphicRaycaster : GvrBasePointerRaycaster {
   public enum BlockingObjects {
     None = 0,
@@ -35,7 +36,7 @@ public class GvrPointerGraphicRaycaster : GvrBasePointerRaycaster {
   private const int NO_EVENT_MASK_SET = -1;
 
   public bool ignoreReversedGraphics = true;
-  public BlockingObjects blockingObjects = BlockingObjects.None;
+  public BlockingObjects blockingObjects = BlockingObjects.ThreeD;
   public LayerMask blockingMask = NO_EVENT_MASK_SET;
 
   private Canvas targetCanvas;
@@ -51,7 +52,7 @@ public class GvrPointerGraphicRaycaster : GvrBasePointerRaycaster {
         return null;
       }
 
-      if (pointer.raycastMode == GvrBasePointer.RaycastMode.HybridExperimental) {
+      if (pointer.raycastMode == GvrBasePointer.RaycastMode.Hybrid) {
         return GetCameraForRaycastMode(pointer, CurrentRaycastModeForHybrid);
       } else {
         return GetCameraForRaycastMode(pointer, pointer.raycastMode);
@@ -90,7 +91,7 @@ public class GvrPointerGraphicRaycaster : GvrBasePointerRaycaster {
     float hitDistance = float.MaxValue;
 
     if (blockingObjects != BlockingObjects.None) {
-      float dist = eventCamera.farClipPlane - eventCamera.nearClipPlane;
+      float dist = pointerRay.distance;
 
       if (blockingObjects == BlockingObjects.ThreeD || blockingObjects == BlockingObjects.All) {
         RaycastHit hit;
@@ -135,13 +136,13 @@ public class GvrPointerGraphicRaycaster : GvrBasePointerRaycaster {
         float rayDot = Vector3.Dot(transForward, pointerRay.ray.direction);
         resultDistance = transDot / rayDot;
         Vector3 hitPosition = pointerRay.ray.origin + (pointerRay.ray.direction * resultDistance);
-        resultDistance = resultDistance + pointerRay.distanceFromStart;
 
         // Check to see if the go is behind the camera.
         if (resultDistance < 0 || resultDistance >= hitDistance || resultDistance > pointerRay.distance) {
           continue;
         }
 
+        resultDistance = resultDistance + pointerRay.distanceFromStart;
         Transform pointerTransform =
           GvrPointerInputModule.Pointer.PointerTransform;
         float delta = (hitPosition - pointerTransform.position).magnitude;
@@ -179,7 +180,7 @@ public class GvrPointerGraphicRaycaster : GvrBasePointerRaycaster {
         }
 
         if (cachedPointerEventCamera == null) {
-          Debug.LogError("GvrPointerGraphicRaycaster requires GvrPointer to have a Camera when in Direct mode.");
+          cachedPointerEventCamera = AddDummyCameraToPointer(pointer);
           return null;
         }
 
@@ -188,6 +189,13 @@ public class GvrPointerGraphicRaycaster : GvrBasePointerRaycaster {
       default:
         return pointer.PointerCamera;
     }
+  }
+
+  private Camera AddDummyCameraToPointer(GvrBasePointer pointer) {
+    Camera camera = pointer.PointerTransform.gameObject.AddComponent<Camera>();
+    camera.enabled = false;
+    camera.nearClipPlane = 0.01f; // Minimum Near Clip Plane.
+    return camera;
   }
 
   /// Perform a raycast into the screen and collect all graphics underneath it.

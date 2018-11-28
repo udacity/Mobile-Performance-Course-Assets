@@ -13,58 +13,86 @@
 // limitations under the License.
 
 using UnityEngine;
-using UnityEngine.VR;
 
-// Recenter only the controller.
-// Usage: Set GvrControllerPointer > Controller as the pointer field, and
-// the camera to recenter (e.g. Main Camera).
+#if UNITY_2017_2_OR_NEWER
+using UnityEngine.XR;
+#else
+using XRSettings = UnityEngine.VR.VRSettings;
+#endif  // UNITY_2017_2_OR_NEWER
+
+/// Used to recenter only the controllers, required for scenes that have no clear forward direction.
+/// Details: https://developers.google.com/vr/distribute/daydream/design-requirements#UX-D6
+///
+/// Works by offsetting the orientation of the transform when a recenter occurs to correct for the
+/// orientation change caused by the recenter event.
+///
+/// Usage: Place on the parent of the camera that should have it's orientation corrected.
+[HelpURL("https://developers.google.com/vr/unity/reference/class/GvrRecenterOnlyController")]
 public class GvrRecenterOnlyController : MonoBehaviour {
-  private Quaternion recenteringOffset = Quaternion.identity;
-
-  [Tooltip("The controller to recenter")]
-  public GameObject pointer;
-
-  [Tooltip("The camera to recenter")]
-  public Camera cam;
-
-  void Start() {
-    if (cam == null) {
-      cam = Camera.main;
-    }
-  }
+  private Quaternion lastAppliedYawCorrection = Quaternion.identity;
+  private Quaternion yawCorrection = Quaternion.identity;
 
   void Update() {
-    if (cam == null || pointer == null
-       || GvrControllerInput.State != GvrConnectionState.Connected) {
-      return;
+    bool connected = false;
+    foreach (var hand in Gvr.Internal.ControllerUtils.AllHands) {
+      GvrControllerInputDevice device = GvrControllerInput.GetDevice(hand);
+      if (device.State == GvrConnectionState.Connected) {
+        connected = true;
+        break;
+      }
     }
-    // Daydream is loaded only on deivce, not in editor.
-#if UNITY_ANDROID && !UNITY_EDITOR
-        if (VRSettings.loadedDeviceName != "daydream")
-        {
-            return;
-        }
-#endif
-    if (GvrControllerInput.Recentered) {
-      pointer.transform.rotation = recenteringOffset;
-      cam.transform.parent.rotation = recenteringOffset;
+    if (!connected) {
       return;
     }
 
-#if !UNITY_EDITOR
-    if (GvrControllerInput.HomeButtonDown || GvrControllerInput.HomeButtonState) {
+    // Daydream is loaded only on deivce, not in editor.
+#if UNITY_ANDROID && !UNITY_EDITOR
+    if (XRSettings.loadedDeviceName != GvrSettings.VR_SDK_DAYDREAM) {
       return;
     }
-#endif  // !UNITY_EDITOR
-    recenteringOffset = Quaternion.Euler(0, cam.transform.rotation.eulerAngles.y, 0);
+#endif
+
+    if (GvrControllerInput.Recentered) {
+      ApplyYawCorrection();
+      return;
+    }
+
+#if UNITY_EDITOR
+    // Compatibility for Instant Preview.
+    if (Gvr.Internal.InstantPreview.Instance != null &&
+      Gvr.Internal.InstantPreview.Instance.enabled &&
+      Gvr.Internal.ControllerUtils.AnyButton(GvrControllerButton.System)) {
+      return;
+    }
+#else  // !UNITY_EDITOR
+    if (Gvr.Internal.ControllerUtils.AnyButton(GvrControllerButton.System)) {
+      return;
+    }
+#endif  // UNITY_EDITOR
+
+    yawCorrection = GetYawCorrection();
   }
 
   void OnDisable() {
-    recenteringOffset = Quaternion.identity;
-    if (cam != null && pointer != null) {
-      pointer.transform.rotation = recenteringOffset;
-      cam.transform.parent.rotation = recenteringOffset;
-    }
+    yawCorrection = Quaternion.identity;
+    RemoveLastYawCorrection();
   }
 
+  private void ApplyYawCorrection() {
+    RemoveLastYawCorrection();
+    transform.localRotation = transform.localRotation * yawCorrection;
+    lastAppliedYawCorrection = yawCorrection;
+  }
+
+  private void RemoveLastYawCorrection() {
+    transform.localRotation =
+      transform.localRotation * Quaternion.Inverse(lastAppliedYawCorrection);
+    lastAppliedYawCorrection = Quaternion.identity;
+  }
+
+  private Quaternion GetYawCorrection() {
+    Quaternion headRotation = GvrVRHelpers.GetHeadRotation();
+    Vector3 euler = headRotation.eulerAngles;
+    return lastAppliedYawCorrection * Quaternion.Euler(0.0f, euler.y, 0.0f);
+  }
 }

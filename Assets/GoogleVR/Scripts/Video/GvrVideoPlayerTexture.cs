@@ -22,6 +22,7 @@ using System.Collections.Generic;
 /// <summary>
 /// Plays video using Exoplayer rendering it on the main texture.
 /// </summary>
+[HelpURL("https://developers.google.com/vr/unity/reference/class/GvrVideoPlayerTexture")]
 public class GvrVideoPlayerTexture : MonoBehaviour {
 
   /// <summary>
@@ -39,7 +40,9 @@ public class GvrVideoPlayerTexture : MonoBehaviour {
 
   private Texture initialTexture;
   private Texture surfaceTexture;
-  private float[] videoMatrix;
+  private float[] videoMatrixRaw;
+  private Matrix4x4 videoMatrix;
+  private int videoMatrixPropertyId;
   private long lastVideoTimestamp;
 
   private bool initialized;
@@ -48,8 +51,7 @@ public class GvrVideoPlayerTexture : MonoBehaviour {
   private long lastBufferedPosition;
   private float framecount = 0;
 
-  private Graphic graphicComponent;
-  private Renderer rendererComponent;
+  private Renderer screen;
 
   /// <summary>
   /// The render event function.
@@ -107,6 +109,13 @@ public class GvrVideoPlayerTexture : MonoBehaviour {
     VideoSurfaceSet = 4,
     VideoSizeChanged = 5
   };
+
+  public enum StereoMode {
+    NoValue = -1,
+    Mono = 0,
+    TopBottom = 1,
+    LeftRight = 2
+  }
 
   /// <summary>
   /// Plugin render commands.
@@ -212,12 +221,75 @@ public class GvrVideoPlayerTexture : MonoBehaviour {
     }
   }
 
+  public StereoMode CurrentStereoMode {
+    get {
+      return videoPlayerPtr != IntPtr.Zero ? (StereoMode)GetStereoMode(videoPlayerPtr) : StereoMode.NoValue;
+    }
+  }
+
+  public bool HasProjection {
+    get {
+      return videoPlayerPtr != IntPtr.Zero ? HasProjectionData(videoPlayerPtr) : false;
+    }
+  }
+
+  public Renderer Screen {
+    get {
+      return screen;
+    }
+    set {
+      if (screen == value) {
+        return;
+      }
+
+      if (screen != null && initialTexture != null) {
+        screen.sharedMaterial.mainTexture = initialTexture;
+      }
+
+      screen = value;
+
+      if (screen != null) {
+        initialTexture = screen.sharedMaterial.mainTexture;
+      }
+    }
+  }
+
+  public Texture CurrentFrameTexture {
+    get {
+      return surfaceTexture;
+    }
+  }
+
+  public int Width {
+    get {
+      return texWidth;
+    }
+  }
+
+  public int Height {
+    get {
+      return texHeight;
+    }
+  }
+
+  public float AspectRatio {
+    get {
+      if (texHeight == 0) {
+        return 0.0f;
+      }
+
+      return (float)texWidth / (float)texHeight;
+    }
+  }
+
   /// Create the video player instance and the event base id.
   void Awake() {
-    videoMatrix = new float[16];
-    // Find the components on which to set the video texture.
-    graphicComponent = GetComponent<Graphic>();
-    rendererComponent = GetComponent<Renderer>();
+    videoMatrixRaw = new float[16];
+    videoMatrixPropertyId = Shader.PropertyToID("video_matrix");
+
+    // Defaults the Screen to the Renderer component on the same object as this script.
+    // The Screen can also be set explicitly.
+    Screen = GetComponent<Renderer>();
 
     CreatePlayer();
   }
@@ -238,12 +310,6 @@ public class GvrVideoPlayerTexture : MonoBehaviour {
     });
 
     initialized = false;
-
-    if (rendererComponent != null) {
-      initialTexture = rendererComponent.material.mainTexture;
-    } else if (graphicComponent != null) {
-      initialTexture = graphicComponent.mainTexture;
-    }
   }
 
   void OnDisable() {
@@ -268,10 +334,8 @@ public class GvrVideoPlayerTexture : MonoBehaviour {
       return;
     }
 
-    if (rendererComponent != null) {
-      rendererComponent.sharedMaterial.mainTexture = texture;
-    } else if (graphicComponent != null) {
-      graphicComponent.material.mainTexture = texture;
+    if (screen != null) {
+      screen.sharedMaterial.mainTexture = texture;
     }
   }
 
@@ -285,18 +349,14 @@ public class GvrVideoPlayerTexture : MonoBehaviour {
       Destroy(surfaceTexture);
       surfaceTexture = null;
     }
-    if (rendererComponent != null) {
-      rendererComponent.sharedMaterial.mainTexture = initialTexture;
-    } else if (graphicComponent != null) {
-      graphicComponent.material.mainTexture = initialTexture;
+    if (screen != null) {
+      screen.sharedMaterial.mainTexture = initialTexture;
     }
   }
 
   public void ReInitializeVideo() {
-    if (rendererComponent != null) {
-      rendererComponent.sharedMaterial.mainTexture = initialTexture;
-    } else if (graphicComponent != null) {
-      graphicComponent.material.mainTexture = initialTexture;
+    if (screen != null) {
+      screen.sharedMaterial.mainTexture = initialTexture;
     }
 
     if (videoPlayerPtr == IntPtr.Zero) {
@@ -307,15 +367,6 @@ public class GvrVideoPlayerTexture : MonoBehaviour {
 
   void OnDestroy() {
     CleanupVideo();
-  }
-
-  void OnValidate() {
-    Renderer r = GetComponent<Renderer>();
-    Graphic g = GetComponent<Graphic>();
-    if (g == null && r == null) {
-      Debug.LogError("TexturePlayer object must have either " +
-        "a Renderer component or a Graphic component.");
-    }
   }
 
   void OnApplicationPause(bool bPause) {
@@ -361,39 +412,22 @@ public class GvrVideoPlayerTexture : MonoBehaviour {
       return;
     }
 
-    if (graphicComponent == null && rendererComponent == null) {
-      Debug.LogError("GvrVideoPlayerTexture: No render or graphic component.");
+    if (screen == null) {
+      Debug.LogError("GvrVideoPlayerTexture: No screen to display the video is set.");
       return;
     }
 
-    // Extract the shader's simplified scale/offset from the SurfaceTexture's
-    // transformation matrix.
-    Vector2 vidTexScale = new Vector2(videoMatrix[0], videoMatrix[5]);
-    Vector2 vidTexOffset = new Vector2(videoMatrix[12], videoMatrix[13]);
-
-    // Handle either the renderer component or the graphic component.
-    if (rendererComponent != null) {
+    if (screen != null) {
       // Unity may build new a new material instance when assigning
       // material.x which can lead to duplicating materials each frame
       // whereas using the shared material will modify the original material.
       // Update the material's texture if it is different.
-      if (rendererComponent.material.mainTexture == null ||
-          rendererComponent.sharedMaterial.mainTexture.GetNativeTexturePtr() !=
-            surfaceTexture.GetNativeTexturePtr()) {
-        rendererComponent.sharedMaterial.mainTexture = surfaceTexture;
+      if (screen.sharedMaterial.mainTexture == null ||
+          screen.sharedMaterial.mainTexture.GetNativeTexturePtr() != surfaceTexture.GetNativeTexturePtr()) {
+        screen.sharedMaterial.mainTexture = surfaceTexture;
       }
-      rendererComponent.sharedMaterial.mainTextureScale = vidTexScale;
-      rendererComponent.sharedMaterial.mainTextureOffset = vidTexOffset;
 
-    } else if (graphicComponent != null) {
-      if (graphicComponent.material.mainTexture == null ||
-          graphicComponent.material.mainTexture.GetNativeTexturePtr() !=
-            surfaceTexture.GetNativeTexturePtr()) {
-          graphicComponent.material.mainTexture = surfaceTexture;
-      }
-      graphicComponent.material.mainTextureScale = vidTexScale;
-      graphicComponent.material.mainTextureOffset = vidTexOffset;
-
+      screen.sharedMaterial.SetMatrix(videoMatrixPropertyId, videoMatrix);
     }
   }
 
@@ -492,7 +526,10 @@ public class GvrVideoPlayerTexture : MonoBehaviour {
   ///     ratio of the texture.
   /// </remarks>
   private void AdjustAspectRatio() {
-    float aspectRatio = texWidth / texHeight;
+    float aspectRatio = AspectRatio;
+    if (aspectRatio == 0.0f) {
+      return;
+    }
 
     // set the y scale based on the x value
     Vector3 newscale = transform.localScale;
@@ -539,7 +576,8 @@ public class GvrVideoPlayerTexture : MonoBehaviour {
 
     if (VideoReady) {
       IssuePlayerEvent(RenderCommand.UpdateVideo);
-      GetVideoMatrix(videoPlayerPtr, videoMatrix);
+      GetVideoMatrix(videoPlayerPtr, videoMatrixRaw);
+      videoMatrix = GvrMathHelpers.ConvertFloatArrayToMatrix(videoMatrixRaw);
       long vidTimestamp = GetVideoTimestampNs(videoPlayerPtr);
       if (vidTimestamp != lastVideoTimestamp) {
         framecount++;
@@ -777,6 +815,12 @@ public class GvrVideoPlayerTexture : MonoBehaviour {
       int value);
 
   [DllImport(dllName)]
+  private static extern int GetStereoMode(IntPtr videoPlayerPtr);
+
+  [DllImport(dllName)]
+  private static extern bool HasProjectionData(IntPtr videoPlayerPtr);
+
+  [DllImport(dllName)]
   private static extern bool SetVideoPlayerSupportClassname(
       IntPtr videoPlayerPtr,
       string classname);
@@ -934,6 +978,16 @@ public class GvrVideoPlayerTexture : MonoBehaviour {
 
   private static void SetCurrentVolume(IntPtr videoPlayerPtr, int value) {
     Debug.Log(NOT_IMPLEMENTED_MSG);
+  }
+
+  private static int GetStereoMode(IntPtr videoPlayerPtr) {
+    Debug.Log(NOT_IMPLEMENTED_MSG);
+    return -1;
+  }
+
+  private static bool HasProjectionData(IntPtr videoPlayerPtr) {
+    Debug.Log(NOT_IMPLEMENTED_MSG);
+    return false;
   }
 
   private static bool SetVideoPlayerSupportClassname(IntPtr videoPlayerPtr,

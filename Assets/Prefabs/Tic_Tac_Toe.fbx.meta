@@ -1,9 +1,7 @@
 fileFormatVersion: 2
 guid: 9a693c0f68aff3a479efa495ad7150ae
-timeCreated: 1490301187
-licenseType: Free
 ModelImporter:
-  serializedVersion: 19
+  serializedVersion: 22
   fileIDToRecycleName:
     100000: Arm_Chair
     100002: Arm_Chair.001
@@ -167,26 +165,137 @@ ModelImporter:
     4300058: Chess_Board
     4300060: Backgammon_Board
     4300062: Arm_Chair
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Arm_Chair_Mat
+    second: {fileID: 2100000, guid: 38942e619d2f0204f836f9c9ce45c779, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Backgammon_Mat
+    second: {fileID: 2100000, guid: 7e992cfbedaf5c540b64d264c2197e67, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Chess_Board_Mat
+    second: {fileID: 2100000, guid: dcc075c2f5c3fb749b06b6c92486c60c, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Chess_Pieces_Mat
+    second: {fileID: 2100000, guid: 19333add1f6495e49b1e9ed8e34aae52, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Cornder_Cabinet_Mat
+    second: {fileID: 2100000, guid: bb279e8769cbaad4f9007181d75ba0fc, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Couch_Mat
+    second: {fileID: 2100000, guid: 9c60855b8882f2f459d15ba088e509ca, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Curtain_Holder_Mat
+    second: {fileID: 2100000, guid: 7616e1c42ad362c43846124105524ac7, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Curtain_Mat
+    second: {fileID: 2100000, guid: c6cbe94b8b2cf404d8930fd40c475070, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Desk_Chair_Mat
+    second: {fileID: 2100000, guid: e863596820814bb4094e47dc86df3b17, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Desk_Mat
+    second: {fileID: 2100000, guid: 2a7da68667910e1468e23661e55f670d, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Door_Frame_Mat
+    second: {fileID: 2100000, guid: 359c17f83dab23b4aa5b5e3af443555d, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Door_Mat
+    second: {fileID: 2100000, guid: 984bbde41a4114a448a59489a6f797c6, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Handle_Mat
+    second: {fileID: 2100000, guid: 0efbd81a4a77ea74d92bfc54bcec5df4, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: IQ_Game_Mat
+    second: {fileID: 2100000, guid: 28f8a3f98f4d8a846b99d74c24d7d742, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Lamp_Mat
+    second: {fileID: 2100000, guid: 4c2b7d283c907904abdf264922f63b42, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Puzzle_Game-Mat
+    second: {fileID: 2100000, guid: b925f89f900cd13408740fd02fb50702, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Room_Mat
+    second: {fileID: 2100000, guid: cb28f316a82f1c241a7ad40b1a4ed780, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Rubik_Cube_Mat
+    second: {fileID: 2100000, guid: 297a6d3b718dff14f8cf0f289253be06, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Table_Mat
+    second: {fileID: 2100000, guid: c5ab954dac20a7145bb35decbae5b066, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Wall_Cabinet_mat
+    second: {fileID: 2100000, guid: 3415102417fa6fd4f8009611936c7315, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Window_Mat
+    second: {fileID: 2100000, guid: 605bb6d4c5359e248a4c4033ada2fd4e, type: 2}
   materials:
     importMaterials: 1
     materialName: 0
     materialSearch: 1
+    materialLocation: 0
   animations:
     legacyGenerateAnimations: 4
     bakeSimulation: 0
     resampleCurves: 1
     optimizeGameObjects: 0
     motionNodeName: 
+    rigImportErrors: 
+    rigImportWarnings: 
     animationImportErrors: 
     animationImportWarnings: 
     animationRetargetingWarnings: 
     animationDoRetargetingWarnings: 0
+    importAnimatedCustomProperties: 0
     animationCompression: 1
     animationRotationError: 0.5
     animationPositionError: 0.5
     animationScaleError: 0.5
     animationWrapMode: 0
     extraExposedTransformPaths: []
+    extraUserProperties: []
     clipAnimations: []
     isReadable: 1
   meshes:
@@ -194,13 +303,18 @@ ModelImporter:
     globalScale: 1
     meshCompression: 0
     addColliders: 0
+    importVisibility: 0
     importBlendShapes: 1
+    importCameras: 0
+    importLights: 0
     swapUVChannels: 0
-    generateSecondaryUV: 0
+    generateSecondaryUV: 1
     useFileUnits: 1
     optimizeMeshForGPU: 1
     keepQuads: 0
     weldVertices: 1
+    preserveHierarchy: 0
+    indexFormat: 1
     secondaryUVAngleDistortion: 8
     secondaryUVAreaDistortion: 15.000001
     secondaryUVHardAngle: 88
@@ -210,6 +324,7 @@ ModelImporter:
     normalSmoothAngle: 60
     normalImportMode: 0
     tangentImportMode: 3
+    normalCalculationMode: 0
   importAnimation: 1
   copyAvatar: 0
   humanDescription:

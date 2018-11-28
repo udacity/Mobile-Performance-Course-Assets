@@ -28,10 +28,8 @@ using UnityEngine.EventSystems;
 /// This abstract class should be implemented by pointers doing 1 of 2 things:
 /// 1. Responding to movement of the users head (Cardboard gaze-based-pointer).
 /// 2. Responding to the movement of the daydream controller (Daydream 3D pointer).
-public abstract class GvrBasePointer : MonoBehaviour {
+public abstract class GvrBasePointer : MonoBehaviour, IGvrControllerInputDeviceReceiver {
   public enum RaycastMode {
-    /// Default method for casting ray.
-    ///
     /// Casts a ray from the camera through the target of the pointer.
     /// This is ideal for reticles that are always rendered on top.
     /// The object that is selected will always be the object that appears
@@ -51,25 +49,23 @@ public abstract class GvrBasePointer : MonoBehaviour {
     ///
     /// 1. Hide the laser.
     /// 2. Use a full-length laser pointer in Direct mode.
-    /// 3. Use the experimental Hybrid raycast mode.
+    /// 3. Use the Hybrid raycast mode.
     Camera,
     /// Cast a ray directly from the pointer origin.
     ///
     /// Recommended for full-length laser pointers.
     Direct,
-    /// Experimental method for casting ray.
+    /// Default method for casting ray.
     ///
     /// Combines the Camera and Direct raycast modes.
     /// Uses a Direct ray up until the CameraRayIntersectionDistance, and then switches to use
     /// a Camera ray starting from the point where the two rays intersect.
     ///
-    /// Recommended for the standard daydream controller (short laser with a distant reticle).
-    /// Like Camera mode, this prevents the reticle appearing jumpy. Additionally, it still allows
-    /// the user to target objects that are close to them by using the laser as a visual reference.
-    ///
-    /// Note: If using this mode with GvrControllerPointer, it is recommended to turn off the flag
-    /// "allowRotation" in GvrLaserVisual.
-    HybridExperimental,
+    /// Recommended for use with the standard settings of the GvrControllerPointer prefab.
+    /// This is the most versatile raycast mode. Like Camera mode, this prevents the reticle
+    /// appearing jumpy. Additionally, it still allows the user to target objects that are close
+    /// to them by using the laser as a visual reference.
+    Hybrid,
   }
 
   /// Represents a ray segment for a series of intersecting rays.
@@ -86,13 +82,26 @@ public abstract class GvrBasePointer : MonoBehaviour {
   }
 
   /// Determines which raycast mode to use for this raycaster.
-  public RaycastMode raycastMode = RaycastMode.Camera;
+  ///   • Camera - Ray is cast from the camera through the pointer.
+  ///   • Direct - Ray is cast forward from the pointer.
+  ///   • Hybrid - Begins with a Direct ray and transitions to a Camera ray.
+  [Tooltip("Determines which raycast mode to use for this raycaster.\n" +
+    " • Camera - Ray is cast from camera.\n" +
+    " • Direct - Ray is cast from pointer.\n" +
+    " • Hybrid - Transitions from Direct ray to Camera ray.")]
+  public RaycastMode raycastMode = RaycastMode.Hybrid;
 
   /// Determines the eventCamera for _GvrPointerPhysicsRaycaster_ and _GvrPointerGraphicRaycaster_.
   /// Additionaly, this is used to control what camera to use when calculating the Camera ray for
   /// the Hybrid and Camera raycast modes.
   [Tooltip("Optional: Use a camera other than Camera.main.")]
   public Camera overridePointerCamera;
+
+#if UNITY_EDITOR
+  /// Determines if the rays used for raycasting will be drawn in the editor.
+  [Tooltip("Determines if the rays used for raycasting will be drawn in the editor.")]
+  public bool drawDebugRays = false;
+#endif  // UNITY_EDITOR
 
   /// Convenience function to access what the pointer is currently hitting.
   public RaycastResult CurrentRaycastResult {
@@ -143,63 +152,98 @@ public abstract class GvrBasePointer : MonoBehaviour {
     }
   }
 
+  public GvrControllerInputDevice ControllerInputDevice { get; set; }
+
   /// If true, the trigger was just pressed. This is an event flag:
   /// it will be true for only one frame after the event happens.
-  /// Defaults to GvrControllerInput.ClickButtonDown, can be overridden to change the trigger.
+  /// Defaults to mouse button 0 down on Cardboard or
+  /// ControllerInputDevice.GetButtonDown(TouchPadButton) on Daydream.
+  /// Can be overridden to change the trigger.
   public virtual bool TriggerDown {
     get {
       bool isTriggerDown = Input.GetMouseButtonDown(0);
-      return isTriggerDown || GvrControllerInput.ClickButtonDown;
+      if (ControllerInputDevice != null) {
+        isTriggerDown |=
+            ControllerInputDevice.GetButtonDown(GvrControllerButton.TouchPadButton);
+      }
+      return isTriggerDown;
     }
   }
 
   /// If true, the trigger is currently being pressed. This is not
   /// an event: it represents the trigger's state (it remains true while the trigger is being
   /// pressed).
-  /// Defaults to GvrControllerInput.ClickButton, can be overridden to change the trigger.
+  /// Defaults to mouse button 0 state on Cardboard or
+  /// ControllerInputDevice.GetButton(TouchPadButton) on Daydream.
+  /// Can be overridden to change the trigger.
   public virtual bool Triggering {
     get {
       bool isTriggering = Input.GetMouseButton(0);
-      return isTriggering || GvrControllerInput.ClickButton;
+      if (ControllerInputDevice != null) {
+        isTriggering |=
+            ControllerInputDevice.GetButton(GvrControllerButton.TouchPadButton);
+      }
+      return isTriggering;
     }
   }
 
   /// If true, the trigger was just released. This is an event flag:
   /// it will be true for only one frame after the event happens.
-  /// Defaults to GvrControllerInput.ClickButtonUp, can be overridden to change the trigger.
+  /// Defaults to mouse button 0 up on Cardboard or
+  /// ControllerInputDevice.GetButtonUp(TouchPadButton) on Daydream.
+  /// Can be overridden to change the trigger.
   public virtual bool TriggerUp {
     get {
-      bool isTriggerDown = Input.GetMouseButtonUp(0);
-      return isTriggerDown || GvrControllerInput.ClickButtonUp;
+      bool isTriggerUp = Input.GetMouseButtonUp(0);
+      if (ControllerInputDevice == null) {
+        isTriggerUp |=
+            ControllerInputDevice.GetButtonUp(GvrControllerButton.TouchPadButton);
+      }
+      return isTriggerUp;
     }
   }
 
   /// If true, the user just started touching the touchpad. This is an event flag (it is true
   /// for only one frame after the event happens, then reverts to false).
   /// Used by _GvrPointerScrollInput_ to generate OnScroll events using Unity's Event System.
-  /// Defaults to GvrControllerInput.TouchDown, can be overridden to change the input source.
+  /// Defaults to ControllerInputDevice.GetButtonDown(TouchPadTouch), can be overridden to change
+  /// the input source.
   public virtual bool TouchDown {
     get {
-      return GvrControllerInput.TouchDown;
+      if (ControllerInputDevice == null) {
+        return false;
+      } else {
+        return ControllerInputDevice.GetButtonDown(GvrControllerButton.TouchPadTouch);
+      }
     }
   }
 
   /// If true, the user is currently touching the touchpad.
   /// Used by _GvrPointerScrollInput_ to generate OnScroll events using Unity's Event System.
-  /// Defaults to GvrControllerInput.IsTouching, can be overridden to change the input source.
+  /// Defaults to ControllerInputDevice.GetButton(TouchPadTouch), can be overridden to change
+  /// the input source.
   public virtual bool IsTouching {
     get {
-      return GvrControllerInput.IsTouching;
+      if (ControllerInputDevice == null) {
+        return false;
+      } else {
+        return ControllerInputDevice.GetButton(GvrControllerButton.TouchPadTouch);
+      }
     }
   }
 
   /// If true, the user just stopped touching the touchpad. This is an event flag (it is true
   /// for only one frame after the event happens, then reverts to false).
   /// Used by _GvrPointerScrollInput_ to generate OnScroll events using Unity's Event System.
-  /// Defaults to GvrControllerInput.TouchUp, can be overridden to change the input source.
+  /// Defaults to ControllerInputDevice.GetButtonUp(TouchPadTouch), can be overridden to change
+  /// the input source.
   public virtual bool TouchUp {
     get {
-      return GvrControllerInput.TouchUp;
+      if (ControllerInputDevice == null) {
+        return false;
+      } else {
+        return ControllerInputDevice.GetButtonUp(GvrControllerButton.TouchPadTouch);
+      }
     }
   }
 
@@ -207,11 +251,19 @@ public abstract class GvrBasePointer : MonoBehaviour {
   /// If not touching, this is the position of the last touch (when the finger left the touchpad).
   /// The X and Y range is from 0 to 1.
   /// (0, 0) is the top left of the touchpad and (1, 1) is the bottom right of the touchpad.
-  /// Used by _GvrPointerScrollInput_ to generate OnScroll events using Unity's Event System.
-  /// Defaults to GvrControllerInput.TouchPos, can be overridden to change the input source.
+  /// Used by `GvrPointerScrollInput` to generate OnScroll events using Unity's Event System.
+  /// Defaults to `ControllerInputDevice.TouchPos` but translated to top-left-relative coordinates
+  /// for backwards compatibility. Can be overridden to change the input source.
   public virtual Vector2 TouchPos {
     get {
-      return GvrControllerInput.TouchPos;
+      if (ControllerInputDevice == null) {
+        return Vector2.zero;
+      } else {
+        Vector2 touchPos = ControllerInputDevice.TouchPos;
+        touchPos.x = (touchPos.x / 2.0f) + 0.5f;
+        touchPos.y = (-touchPos.y / 2.0f) + 0.5f;
+        return touchPos;
+      }
     }
   }
 
@@ -307,8 +359,8 @@ public abstract class GvrBasePointer : MonoBehaviour {
   /// Returns a point in worldspace a specified distance along the pointer.
   /// What this point will be is different depending on the raycastMode.
   ///
-  /// Due to the the differences in raycast modes, it is recommended to use this function
-  /// instead of attempting to calculate a point projected out from the pointer yourself.
+  /// Because raycast modes differ, use this function instead of manually calculating a point
+  /// projected from the pointer.
   public Vector3 GetPointAlongPointer(float distance) {
     PointerRay pointerRay = GetRayForDistance(distance);
     return pointerRay.ray.GetPoint(distance - pointerRay.distanceFromStart);
@@ -320,7 +372,7 @@ public abstract class GvrBasePointer : MonoBehaviour {
   public PointerRay GetRayForDistance(float distance) {
     PointerRay result = new PointerRay();
 
-    if (raycastMode == RaycastMode.HybridExperimental) {
+    if (raycastMode == RaycastMode.Hybrid) {
       float directDistance = CameraRayIntersectionDistance;
       if (distance < directDistance) {
         result = CalculateHybridRay(this, RaycastMode.Direct);
@@ -413,4 +465,50 @@ public abstract class GvrBasePointer : MonoBehaviour {
   protected virtual void Start() {
     GvrPointerInputModule.OnPointerCreated(this);
   }
+
+#if UNITY_EDITOR
+  protected virtual void OnDrawGizmos() {
+    if (drawDebugRays && Application.isPlaying && isActiveAndEnabled) {
+      switch (raycastMode) {
+        case RaycastMode.Camera:
+          // Camera line.
+          Gizmos.color = Color.green;
+          PointerRay pointerRay = CalculateRay(this, RaycastMode.Camera);
+          Gizmos.DrawLine(pointerRay.ray.origin, pointerRay.ray.GetPoint(pointerRay.distance));
+          Camera camera = PointerCamera;
+
+          // Pointer to intersection dotted line.
+          Vector3 intersection =
+            PointerTransform.position + (PointerTransform.forward * CameraRayIntersectionDistance);
+          UnityEditor.Handles.DrawDottedLine(PointerTransform.position, intersection, 1.0f);
+          break;
+        case RaycastMode.Direct:
+          // Direct line.
+          Gizmos.color = Color.blue;
+          pointerRay = CalculateRay(this, RaycastMode.Direct);
+          Gizmos.DrawLine(pointerRay.ray.origin, pointerRay.ray.GetPoint(pointerRay.distance));
+          break;
+        case RaycastMode.Hybrid:
+          // Direct line.
+          Gizmos.color = Color.blue;
+          pointerRay = CalculateHybridRay(this, RaycastMode.Direct);
+          Gizmos.DrawLine(pointerRay.ray.origin, pointerRay.ray.GetPoint(pointerRay.distance));
+
+          // Camera line.
+          Gizmos.color = Color.green;
+          pointerRay = CalculateHybridRay(this, RaycastMode.Camera);
+          Gizmos.DrawLine(pointerRay.ray.origin, pointerRay.ray.GetPoint(pointerRay.distance));
+
+          // Camera to intersection dotted line.
+          camera = PointerCamera;
+          if (camera != null) {
+            UnityEditor.Handles.DrawDottedLine(camera.transform.position, pointerRay.ray.origin, 1.0f);
+          }
+          break;
+        default:
+          break;
+      }
+    }
+  }
+#endif // UNITY_EDITOR
 }
